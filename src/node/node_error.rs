@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum NodeError {
     InvalidPrevBlockHash,
     InvalidDifficulty,
@@ -8,5 +9,4 @@ pub enum NodeError {
     InvalidTransactionInputSignature,
     InvalidTransactionBalance,
     InvalidTransactionReward,
-    InvalidBlock,
 }

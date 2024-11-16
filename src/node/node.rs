@@ -5,8 +5,7 @@ use crate::{
         BLOCK_VALUE, GENESIS_BLOCK_HASH, MAX_AHEAD_OF_TIME_TIMESTAMP_SECS, STARTING_DIFFICULTY,
     },
     transaction::{
-        transaction::Transaction, transaction_input::TransactionInput,
-        transaction_output::TransactionOutput, unspent_transaction::UnspentTransaction,
+        transaction::Transaction, transaction_input::TransactionInput, transaction_output::TransactionOutput, unspent_transaction::UnspentTransaction
     },
 };
 use std::{collections::HashMap, time::SystemTime};
@@ -17,7 +16,7 @@ pub struct Node {
     unspent_transactions: HashMap<u32, UnspentTransaction>,
     current_difficulty: u32,
     last_block_hash: u32,
-    transaction_pool: Vec<Transaction>,
+    transaction_pool: HashMap<u32, Transaction>,
 }
 
 impl Node {
@@ -27,7 +26,7 @@ impl Node {
             unspent_transactions: HashMap::default(),
             current_difficulty: STARTING_DIFFICULTY,
             last_block_hash: GENESIS_BLOCK_HASH,
-            transaction_pool: vec![],
+            transaction_pool: HashMap::new(),
         };
         let genesis_block_header = BlockHeader::genesis();
 
@@ -43,7 +42,7 @@ impl Node {
         let block_hash = block.hash();
         let prev_block_wrapper = self
             .blocks
-            .get(&block_hash)
+            .get(&block.header.previous_block_hash)
             .ok_or(NodeError::InvalidPrevBlockHash)?;
 
         if block.header.difficulty_target != self.current_difficulty {
@@ -155,9 +154,10 @@ impl Node {
             let transaction = self
                 .unspent_transactions
                 .entry(transaction_hash)
-                .or_insert_with(|| UnspentTransaction::default());
+                .or_insert_with(|| UnspentTransaction::new(transaction_hash));
 
             transaction.unspent_outputs.insert(output_index, output);
+            self.transaction_pool.remove(&transaction_hash);
         }
 
         // Register the new block
@@ -171,9 +171,27 @@ impl Node {
             .next_blocks_hashes
             .push(block_hash);
 
+        self.last_block_hash = block_hash;
+
         // TODO: adjust block difficulty
 
         Ok(block_hash)
+    }
+
+    pub fn get_last_block_hash(&self) -> u32 {
+        self.last_block_hash
+    }
+
+    pub fn get_awaiting_transactions(&self) -> Vec<Transaction> {
+        Vec::from_iter(self.transaction_pool.values().into_iter().cloned())
+    }
+
+    pub fn add_transaction(&mut self, transaction: Transaction) -> u32 {
+        let hash = transaction.hash();
+
+        self.transaction_pool.insert(transaction.hash(), transaction);
+
+        hash
     }
 
     fn check_hash_difficulty(&self, hash: u32) -> bool {
@@ -185,5 +203,22 @@ impl Node {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs() as u32
+    }
+
+    pub fn print_unspent_transactions(&self, owners: &HashMap<u32, String>) {
+        if self.unspent_transactions.is_empty() {
+            println!("<Nobody has any money>");
+        }
+
+        for transaction in self.unspent_transactions.values() {
+            for output in transaction.unspent_outputs.values() {
+                let owner = match owners.get(&output.recipient_public_key) {
+                    Some(name) => name,
+                    None => &output.recipient_public_key.to_string(),
+                };
+
+                println!("{}: {} units", owner, output.value);
+            }
+        }
     }
 }
