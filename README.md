@@ -2,6 +2,8 @@
 
 Simplistic and partial implementation of a Bitcoin node.
 
+Based on https://bitcoin.org/bitcoin.pdf.
+
 ✅ What is implemented:
 
 - Checks that a block is valid and adds it to the chain.
